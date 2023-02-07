@@ -16,8 +16,9 @@ public class Application extends JFrame {
     private JTable table;
     private JPanel rootPanel;
 
-    private final DefaultTableModel defaultTableModel;
+    private DefaultTableModel defaultTableModel;
     private static final String[] tableHeader = {"step", "min", "max", "result"};
+    private static final int nonEditableColumn = 3;
 
     public Application() {
         super("Lab_1");
@@ -25,9 +26,6 @@ public class Application extends JFrame {
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setVisible(true);
         setSize(800, 600);
-        defaultTableModel = (DefaultTableModel) table.getModel();
-        Arrays.stream(tableHeader).forEach(defaultTableModel::addColumn);
-
         addButton.addActionListener(new AddButtonActionListener());
         deleteButton.addActionListener(new DeleteButtonActionListener());
         calculateButton.addActionListener(new CalculateButtonActionListener());
@@ -38,9 +36,11 @@ public class Application extends JFrame {
         table = new JTable(){
             @Override
             public boolean isCellEditable(int row,int column){
-                return column != 3;
+                return column != nonEditableColumn;
             }
         };
+        defaultTableModel = (DefaultTableModel) table.getModel();
+        Arrays.stream(tableHeader).forEach(defaultTableModel::addColumn);
     }
 
     private class AddButtonActionListener implements ActionListener {
@@ -85,18 +85,18 @@ public class Application extends JFrame {
 
             if (Math.abs(min) == Math.abs(max)) {
                 result.setText("0");
-                defaultTableModel.setValueAt("0", selectedRow, 3);
+                defaultTableModel.setValueAt("0", selectedRow, nonEditableColumn);
                 return;
             }
             if (min == 0.0 || max == 0.0) {
                 result.setText("Интеграл расходится");
-                defaultTableModel.setValueAt("Интеграл расходится", selectedRow, 3);
+                defaultTableModel.setValueAt("Интеграл расходится", selectedRow, nonEditableColumn);
                 return;
             }
             for (double i = min; i <= max - step; i += step) {
                 if (i != 0) {
                     inResult += (1 / i + 1 / (i + step)) * step / 2;
-                    defaultTableModel.setValueAt(inResult, selectedRow, 3);
+                    defaultTableModel.setValueAt(inResult, selectedRow, nonEditableColumn);
                 }
             }
             result.setText(String.valueOf(inResult));
