@@ -1,24 +1,30 @@
 import javax.swing.*;
+import javax.swing.event.TableModelEvent;
+import javax.swing.event.TableModelListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Vector;
 
 public class Application extends JFrame {
+    private static final List<String> tableHeader = List.of(new String[]{ "step", "min", "max", "result"});
+    private static final List<List<String>> startData = List.of(List.of(new String[]{"0.01", "1", "5"}),
+            List.of(new String[]{"0.001", "-2", "5"}));
+    private static final int NON_EDITABLE_COLUMN = 3;
     private JTextField stepTextField;
     private JTextField minTextField;
     private JTextField maxTextField;
     private JButton addButton;
     private JButton deleteButton;
     private JButton calculateButton;
-    private JTextField result;
     private JTable table;
     private JPanel rootPanel;
-
+    private JButton deleteTableButton;
+    private JButton uploadButton;
     private DefaultTableModel defaultTableModel;
-    private static final String[] tableHeader = {"step", "min", "max", "result"};
-    private static final int nonEditableColumn = 3;
+    private List<RecIntegral> data;
 
     public Application() {
         super("Lab_1");
@@ -29,34 +35,55 @@ public class Application extends JFrame {
         addButton.addActionListener(new AddButtonActionListener());
         deleteButton.addActionListener(new DeleteButtonActionListener());
         calculateButton.addActionListener(new CalculateButtonActionListener());
+        defaultTableModel.addTableModelListener(new ChangeTableListener());
+        deleteTableButton.addActionListener(new DeleteTableListener());
+        uploadButton.addActionListener(new UploadTableListener());
+    }
 
+    public static void main(String[] args) {
+        new Application();
     }
 
     private void createUIComponents() {
-        table = new JTable(){
+        data = new ArrayList<>();
+        table = new JTable() {
             @Override
-            public boolean isCellEditable(int row,int column){
-                return column != nonEditableColumn;
+            public boolean isCellEditable(int row, int column) {
+                return column != NON_EDITABLE_COLUMN;
             }
         };
         defaultTableModel = (DefaultTableModel) table.getModel();
-        Arrays.stream(tableHeader).forEach(defaultTableModel::addColumn);
+        tableHeader.forEach(defaultTableModel::addColumn);
+        startData.forEach(this::addRow);
+
+    }
+
+    private void addRow(List<String> data) {
+        defaultTableModel.addRow(data.toArray());
+        this.data.add(new RecIntegral(data));
     }
 
     private class AddButtonActionListener implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent e) {
-            String[] row = new String[3];
-            if ((!stepTextField.getText().isEmpty() && stepTextField.getText().matches("-?\\d*+(\\.\\d+)?")) &&
-                    (!minTextField.getText().isEmpty() && minTextField.getText().matches("-?\\d*+(\\.\\d+)?")) &&
-                    (!maxTextField.getText().isEmpty() && maxTextField.getText().matches("-?\\d*+(\\.\\d+)?"))) {
-                row[0] = stepTextField.getText();
+            List<String> row = new ArrayList<>();
+            String regex = "-?\\d*+(\\.\\d+)?";
+            if ((!stepTextField.getText()
+                    .isEmpty() && stepTextField.getText()
+                    .matches(regex)) &&
+                    (!minTextField.getText()
+                            .isEmpty() && minTextField.getText()
+                            .matches(regex)) &&
+                    (!maxTextField.getText()
+                            .isEmpty() && maxTextField.getText()
+                            .matches(regex))) {
+                row.add(stepTextField.getText());
                 stepTextField.setText("");
-                row[1] = minTextField.getText();
+                row.add(minTextField.getText());
                 minTextField.setText("");
-                row[2] = maxTextField.getText();
+                row.add(maxTextField.getText());
                 maxTextField.setText("");
-                defaultTableModel.addRow(row);
+                addRow(row);
             }
         }
     }
@@ -67,9 +94,11 @@ public class Application extends JFrame {
             int selectedRow = table.getSelectedRow();
             if (selectedRow != -1) {
                 defaultTableModel.removeRow(selectedRow);
+                data.remove(selectedRow);
             }
         }
     }
+
     private class CalculateButtonActionListener implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent e) {
@@ -77,35 +106,53 @@ public class Application extends JFrame {
             if (selectedRow == -1) {
                 return;
             }
-            Vector args = defaultTableModel.getDataVector().get(selectedRow);
+            Vector args = defaultTableModel.getDataVector()
+                    .get(selectedRow);
             double step = Double.parseDouble((String) args.get(0));
             double min = Double.parseDouble((String) args.get(1));
             double max = Double.parseDouble((String) args.get(2));
             double inResult = 0;
-
-            if (Math.abs(min) == Math.abs(max)) {
-                result.setText("0");
-                defaultTableModel.setValueAt("0", selectedRow, nonEditableColumn);
-                return;
+            double i;
+            for (i = min; i <= max - step * 2; i += step) {
+                inResult += (Math.sin(i) + Math.sin(i + step)) * step / 2;
             }
-            if (min == 0.0 || max == 0.0) {
-                result.setText("Интеграл расходится");
-                defaultTableModel.setValueAt("Интеграл расходится", selectedRow, nonEditableColumn);
-                return;
-            }
-            for (double i = min; i <= max - step; i += step) {
-                if (i != 0) {
-                    inResult += (1 / i + 1 / (i + step)) * step / 2;
-                    defaultTableModel.setValueAt(inResult, selectedRow, nonEditableColumn);
-                }
-            }
-            result.setText(String.valueOf(inResult));
-
+            inResult += (Math.sin(max) + Math.sin(i)) * (max - i) / 2;
+            defaultTableModel.setValueAt(inResult, selectedRow, NON_EDITABLE_COLUMN);
+            data.get(selectedRow)
+                    .set(NON_EDITABLE_COLUMN, String.valueOf(inResult));
         }
     }
 
-    public static void main(String[] args) {
-        new Application();
+    private class ChangeTableListener implements TableModelListener {
+        public void tableChanged(TableModelEvent e) {
+            if (e.getType() == TableModelEvent.UPDATE) {
+                data.get(table.getSelectedRow())
+                        .set(table.getSelectedColumn(),
+                                (String) defaultTableModel.getDataVector()
+                                        .get(table.getSelectedRow())
+                                        .get(table.getSelectedColumn()));
+            }
+        }
     }
 
+    private class DeleteTableListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            int items = defaultTableModel.getRowCount();
+            for (int i = 0; i < items; i++) {
+                defaultTableModel.removeRow(0);
+            }
+        }
+    }
+
+    private class UploadTableListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            int items = defaultTableModel.getRowCount();
+            for (int i = 0; i < items; i++) {
+                defaultTableModel.removeRow(0);
+            }
+            data.forEach(i -> defaultTableModel.addRow(i.getData().toArray()));
+        }
+    }
 }
